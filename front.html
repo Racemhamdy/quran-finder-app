@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quran Transcription</title>
+</head>
+<body>
+    <h1>Quran Transcription</h1>
+    <button id="startBtn">Start Recording</button>
+    <button id="stopBtn" disabled>Stop Recording</button>
+    <div id="result"></div>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+
+        document.getElementById('startBtn').addEventListener('click', () => {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.start();
+
+                    document.getElementById('startBtn').disabled = true;
+                    document.getElementById('stopBtn').disabled = false;
+
+                    mediaRecorder.addEventListener('dataavailable', event => {
+                        audioChunks.push(event.data);
+                    });
+
+                    mediaRecorder.addEventListener('stop', () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        const formData = new FormData();
+                        formData.append('file', audioBlob, 'recording.wav');
+
+                        fetch('/transcribe', {
+                            method: 'POST',
+                            body: formData,
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            const resultDiv = document.getElementById('result');
+                            if (data.error) {
+                                resultDiv.innerText = `Error: ${data.error}`;
+                            } else {
+                                resultDiv.innerHTML = `
+                                    <p>Transcribed Text: ${data.transcribed_text}</p>
+                                    <h2>Matching Verses:</h2>
+                                    <ul>
+                                        ${data.matching_verses.map(verse => `<li>${verse.ayat} (Score: ${verse.score})</li>`).join('')}
+                                    </ul>
+                                `;
+                            }
+                        })
+                        .catch(error => {
+                            const resultDiv = document.getElementById('result');
+                            resultDiv.innerText = `Error: ${error}`;
+                        });
+                    });
+                });
+        });
+
+        document.getElementById('stopBtn').addEventListener('click', () => {
+            mediaRecorder.stop();
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+        });
+    </script>
+</body>
+</html>
